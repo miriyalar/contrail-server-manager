@@ -41,7 +41,10 @@ from server_mgr_defaults import *
 from server_mgr_err import *
 from server_mgr_status import *
 from server_mgr_db import ServerMgrDb as db
-from server_mgr_cobbler import ServerMgrCobbler as ServerMgrCobbler
+try:
+    from server_mgr_cobbler import ServerMgrCobbler as ServerMgrCobbler
+except ImportError:
+    pass
 from server_mgr_puppet import ServerMgrPuppet as ServerMgrPuppet
 from server_mgr_logger import ServerMgrlogger as ServerMgrlogger
 from server_mgr_logger import ServerMgrTransactionlogger as ServerMgrTlog
@@ -71,6 +74,7 @@ _DEF_SMGR_BASE_DIR = '/etc/contrail_smgr/'
 _DEF_SMGR_CFG_FILE = _DEF_SMGR_BASE_DIR + 'sm-config.ini'
 _SERVER_TAGS_FILE = _DEF_SMGR_BASE_DIR + 'tags.ini'
 _DEF_HTML_ROOT_DIR = '/var/www/html/'
+_DEF_COBBLER = True
 _DEF_COBBLER_IP = '127.0.0.1'
 _DEF_COBBLER_PORT = None
 _DEF_COBBLER_USERNAME = 'cobbler'
@@ -175,6 +179,12 @@ class VncServerManager():
     _smgr_config = None
     #fileds here except match_keys, obj_name and primary_key should
     #match with the db columns
+
+    def _is_cobbler_enabled(self, cobbler):
+        if cobbler.lower() == 'true':
+            return True
+        else:
+            return False
 
     def _do_puppet_kick(self, host_ip):
         msg = "Puppet kick trigered for %s" % (host_ip)
@@ -320,17 +330,20 @@ class VncServerManager():
 
         # Create an instance of cobbler interface class and connect to it.
         try:
-            self._smgr_cobbler = ServerMgrCobbler(self._args.server_manager_base_dir,
-                                                  self._args.cobbler_ip_address,
-                                                  self._args.cobbler_port,
-                                                  self._args.cobbler_username,
-                                                  self._args.cobbler_password)
+            self._smgr_cobbler = None
+            if self._is_cobbler_enabled(self._args.cobbler):
+                ServerMgrCobbler(self._args.server_manager_base_dir,
+                                 self._args.cobbler_ip_address,
+                                 self._args.cobbler_port,
+                                 self._args.cobbler_username,
+                                 self._args.cobbler_password)
             # Copy contrail centos/redhat repo to cobber repos, so that target
             # systems can install and run puppet agent from kickstart.
-            self._smgr_cobbler._init_create_repo(
-                _CONTRAIL_CENTOS_REPO, self._args.server_manager_base_dir)
-            self._smgr_cobbler._init_create_repo(
-                _CONTRAIL_REDHAT_REPO, self._args.server_manager_base_dir)
+            if self._smgr_cobbler:
+                self._smgr_cobbler._init_create_repo(
+                    _CONTRAIL_CENTOS_REPO, self._args.server_manager_base_dir)
+                self._smgr_cobbler._init_create_repo(
+                    _CONTRAIL_REDHAT_REPO, self._args.server_manager_base_dir)
         except:
             print "Error connecting to cobbler"
             exit()
@@ -439,10 +452,11 @@ class VncServerManager():
         bottle.route('/image', 'DELETE', self.delete_image)
 
         # REST calls for POST methods
-        bottle.route('/server/reimage', 'POST', self.reimage_server)
+        if self._is_cobbler_enabled(self._args.cobbler):
+            bottle.route('/server/reimage', 'POST', self.reimage_server)
+            bottle.route('/server/restart', 'POST', self.restart_server)
+            bottle.route('/dhcp_event', 'POST', self.process_dhcp_event)
         bottle.route('/server/provision', 'POST', self.provision_server)
-        bottle.route('/server/restart', 'POST', self.restart_server)
-        bottle.route('/dhcp_event', 'POST', self.process_dhcp_event)
         bottle.route('/interface_created', 'POST', self.interface_created)
         bottle.route('/run_inventory', 'POST', self._server_inventory_obj.run_inventory)
 
@@ -2192,10 +2206,11 @@ class VncServerManager():
             self._serverDb.delete_server(match_dict)
             # delete the system entries from cobbler
             for server in servers:
-                if server['id']:
+                if server['id'] and self._smgr_cobbler:
                     self._smgr_cobbler.delete_system(server['id'])
             # Sync the above information
-            self._smgr_cobbler.sync()
+            if self._smgr_cobbler:
+                self._smgr_cobbler.sync()
             # Inventory Delete Info Trigger
             gevent.spawn(self._server_inventory_obj.handle_inventory_trigger, "delete", servers)
         except ServerMgrException as e:
@@ -2256,12 +2271,14 @@ class VncServerManager():
                     self._args.html_root_dir + "contrail/repo/" +
                     image_id, True)
                 # delete repo from cobbler
-                self._smgr_cobbler.delete_repo(image_id)
+                if self._smgr_cobbler:
+                    self._smgr_cobbler.delete_repo(image_id)
             else:
-                # delete corresponding distro from cobbler
-                self._smgr_cobbler.delete_distro(image_id)
-                # Sync the above information
-                self._smgr_cobbler.sync()
+                if self._smgr_cobbler:
+                    # delete corresponding distro from cobbler
+                    self._smgr_cobbler.delete_distro(image_id)
+                    # Sync the above information
+                    self._smgr_cobbler.sync()
                 # remove the file
                 os.remove(self._args.server_manager_base_dir + 'images/' +
                           image_id + '.iso')
@@ -2690,13 +2707,15 @@ class VncServerManager():
         server = {}
         # Since this runs on a separate greenlet, create its own cobbler
         # connection, so that it does not interfere with main thread.
+        cobbler_server = None
+        """
         cobbler_server = ServerMgrCobbler(
             self._args.server_manager_base_dir,
             self._args.cobbler_ip_address,
             self._args.cobbler_port,
             self._args.cobbler_username,
             self._args.cobbler_password)
-
+        """
         while True:
             try:
                 reimage_item = self._reimage_queue.get()
@@ -3828,6 +3847,7 @@ class VncServerManager():
             'database_name': _DEF_CFG_DB,
             'server_manager_base_dir': _DEF_SMGR_BASE_DIR,
             'html_root_dir': _DEF_HTML_ROOT_DIR,
+            'cobbler': _DEF_COBBLER,
             'cobbler_ip_address': _DEF_COBBLER_IP,
             'cobbler_port': _DEF_COBBLER_PORT,
             'cobbler_username': _DEF_COBBLER_USERNAME,
@@ -3890,6 +3910,7 @@ class VncServerManager():
                 "Name of JSON file containing list of cluster and servers,"
                 " default None"))
         self._args = parser.parse_args(remaining_argv)
+        
         self._server_monitoring_obj = \
             self._monitoring_base_plugin_obj.parse_monitoring_args(args_str, args, self._args, self._rev_tags_dict,
                                                                    self._monitoring_base_plugin_obj)
