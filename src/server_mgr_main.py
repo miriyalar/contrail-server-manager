@@ -2708,14 +2708,13 @@ class VncServerManager():
         # Since this runs on a separate greenlet, create its own cobbler
         # connection, so that it does not interfere with main thread.
         cobbler_server = None
-        """
-        cobbler_server = ServerMgrCobbler(
-            self._args.server_manager_base_dir,
-            self._args.cobbler_ip_address,
-            self._args.cobbler_port,
-            self._args.cobbler_username,
-            self._args.cobbler_password)
-        """
+        if self._is_cobbler_enabled(self._args.cobbler):
+            cobbler_server = ServerMgrCobbler(
+                self._args.server_manager_base_dir,
+                self._args.cobbler_ip_address,
+                self._args.cobbler_port,
+                self._args.cobbler_username,
+                self._args.cobbler_password)
         while True:
             try:
                 reimage_item = self._reimage_queue.get()
