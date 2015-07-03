@@ -1,7 +1,6 @@
 #!/bin/bash
 
 setenforce 0
-setsebool -P httpd_can_network_connect_cobbler 1
 
 echo ""
 echo "Stopping Puppetmaster"
