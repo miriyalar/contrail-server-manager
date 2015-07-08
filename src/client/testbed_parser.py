@@ -16,12 +16,13 @@ from tempfile import mkdtemp
 # Testbed Converter Version
 __version__ = '1.0'
 
-log = logging.getLogger('test_parser')
+log = logging.getLogger('testbed_parser')
+log.setLevel(logging.DEBUG)
 
 class Utils(object):
     @staticmethod
     def initialize_logger(log_file='testbed_parser.log', log_level=40):
-        logger = logging.getLogger('test_parser')
+        log = logging.getLogger('testbed_parser')
         file_h = logging.FileHandler(log_file)
         file_h.setLevel(logging.DEBUG)
         stream_h = logging.StreamHandler(sys.stdout)
@@ -32,8 +33,8 @@ class Utils(object):
         stream_formatter = logging.Formatter(short_format)
         file_h.setFormatter(file_formatter)
         stream_h.setFormatter(stream_formatter)
-        logger.addHandler(file_h)
-        logger.addHandler(stream_h)
+        log.addHandler(file_h)
+        log.addHandler(stream_h)
 
     @staticmethod
     def is_file_exists(*filenames):
@@ -82,7 +83,7 @@ class Utils(object):
                 for pkg_file in Utils.is_file_exists(*cliargs.contrail_storage_packages)]
 
         # update log level and log file
-        log_level = [40, 30, 20, 10]
+        log_level = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
         cliargs.v = cliargs.v if cliargs.v <= 3 else 3
         Utils.initialize_logger(log_file=cliargs.log_file, log_level=log_level[cliargs.v])
         return cliargs
@@ -114,7 +115,7 @@ class Host(object):
         self.timeout = kwargs.get('timeout', 5)
 
     def __del__(self):
-        print 'Disconnecting...'
+        log.info('Disconnecting...')
         self.disconnect()
 
     def connect(self):
@@ -123,11 +124,11 @@ class Host(object):
             self.connection.connect(self.ip, username=self.username, \
                                     password=self.password, \
                                     timeout=self.timeout)
-            print 'Connected to Host (%s)' % self.ip
+            log.info('Connected to Host (%s)' % self.ip)
         except Exception, err:
-            print 'ERROR: ', err
-            print 'ERROR: Unable to connect Host (%s) with username(%s) ' \
-                  'and password(%s)' % (self.ip, self.username, self.password)
+            log.error('ERROR: %s' % err)
+            log.error('ERROR: Unable to connect Host (%s) with username(%s) ' \
+                  'and password(%s)' % (self.ip, self.username, self.password))
             raise RuntimeError('Connection to (%s) Failed' % self.ip)
 
 
@@ -140,24 +141,34 @@ class Host(object):
         return stdout.read()
 
     def retrieve_iface_info(self):
-        output = self.exec_cmd('ip address list')
+        cmd = 'ip address list'
+        log.debug('Execute: %s' % cmd)
+        output = self.exec_cmd(cmd)
         return output.strip()
 
     def retrieve_route_info(self):
-        output = self.exec_cmd('ip route list')
+        cmd = 'ip route list'
+        log.debug('Execute: %s' % cmd)
+        output = self.exec_cmd(cmd)
         return output.strip()
 
     def retrieve_hostname(self):
-        output = self.exec_cmd('hostname -s')
+        cmd = 'hostname -s'
+        log.debug('Execute: %s' % cmd)
+        output = self.exec_cmd(cmd)
         return output.strip()
 
     def retrieve_domain_name(self):
-        output = self.exec_cmd('hostname -d')
+        cmd = 'hostname -d'
+        log.debug('Execute: %s' % cmd)
+        output = self.exec_cmd(cmd)
         return output.strip()
 
     def retrieve_ostype(self):
-        output = self.exec_cmd("python -c 'from platform import linux_distribution; \
-                               print linux_distribution()'")
+        cmd = "python -c 'from platform import linux_distribution; " \
+              "print linux_distribution()'"
+        log.debug('Execute: %s' % cmd)
+        output = self.exec_cmd(cmd)
         return output.strip()
 
     def parse_iface_info(self, iface_data=None):
@@ -269,40 +280,53 @@ class Host(object):
         pass
 
     def set_ostype(self, ostypes):
+        log.debug('Set ostype (%s) for host ID (%s)' % (ostypes, self.host_id))
         self.ostypes = ostypes
 
     def set_roles(self, roles):
+        log.debug('Set roles (%s) for host ID (%s)' % (roles, self.host_id))
         self.roles = roles
 
     def set_hypervisor(self, hypervisor):
+        log.debug('Set hypervisor (%s) for host ID (%s)' % (hypervisor, self.host_id))
         self.hypervisor = hypervisor
 
     def set_storage_node_configs(self, configs):
+        log.debug('Set storage_node_configs (%s) for host ID (%s)' % (configs, self.host_id))
         self.storage_node_configs = configs
 
     def set_dpdk_configs(self, configs):
+        log.debug('Set dpdk_config (%s) for host ID (%s)' % (configs, self.host_id))
         self.dpdk_config = configs
 
     def set_vrouter_module_params(self, params):
+        log.debug('Set vrouter_module_params (%s) for host ID (%s)' % (params, self.host_id))
         self.vrouter_module_params = params
 
     def set_virtual_gateway(self, configs):
+        log.debug('Set vgw (%s) for host ID (%s)' % (configs, self.host_id))
         self.vgw = configs
 
     def set_bond_info(self, bond_info):
+        log.debug('Set bond (%s) for host ID (%s)' % (bond_info, self.host_id))
         self.bond = bond_info
 
     def set_control_data(self, control_data):
+        log.debug('Set control_data (%s) for host ID (%s)' % (control_data, self.host_id))
         self.control_data = control_data
 
     def set_static_route(self, static_route):
+        log.debug('Set static_route (%s) for host ID (%s)' % (static_route, self.host_id))
         self.static_route = static_route
 
     def set_tor_agent(self, configs):
+        log.debug('Set tor_agent (%s) for host ID (%s)' % (configs, self.host_id))
         self.tor_agent = configs
 
     def set_hostname(self):
+        log.debug('Retrieve hostname for host ID (%s)' % self.host_id)
         self.hostname = self.get_hostname()
+        log.debug('Set hostname (%s) for host ID (%s)' % (self.hostname, self.host_id))
 
     def update(self):
         self.set_actual_ostype()
@@ -333,6 +357,7 @@ class Testbed(object):
         self.import_testbed()
 
     def import_testbed(self):
+        log.debug('Handling fab imports')
         pattern = re.compile(r'\bfrom\s+fabric.api\s+import\s+env\b')
         tempdir = mkdtemp()
         sys.path.insert(0, tempdir)
@@ -345,11 +370,12 @@ class Testbed(object):
         new_contents = pattern.sub(self.fab_replacer, testbed_contents)
         with open(os.path.join(tempdir, 'testbed.py'), 'w') as fid:
             fid.write(new_contents)
+        log.debug('Replaced fab imports with Attribute Dict to provide env variable')
 
         try:
             self.testbed = __import__('testbed')
         except Exception, err:
-            print "ERROR: %s" % err
+            log.error(err)
             raise RuntimeError('Error while importing testbed file (%s)' % self.testbed_file)
         finally:
             shutil.rmtree(tempdir)
@@ -381,6 +407,7 @@ class TestSetup(Testbed):
 
     def connect(self):
         for host_obj in self.hosts.values():
+            log.debug('Connecting host (%s) ...' % host_obj.ip)
             host_obj.connect()
 
     def update(self):
@@ -435,11 +462,13 @@ class TestSetup(Testbed):
     def update_host_roles(self):
         host_dict = self.get_roles()
         for host_id, roles in host_dict.items():
+            log.debug('Removing roles - all, build')
             # Not required in SM environment
             if roles.count('all') > 0:
                 roles.remove('all')
             if roles.count('build') > 0:
                 roles.remove('build')
+            log.debug('Replacing cfgm role with config role name')
             if roles.count('cfgm') > 0:
                 roles.remove('cfgm')
                 roles.append('config')
@@ -515,25 +544,35 @@ class BaseJsonGenerator(object):
 
     def set_if_defined(self, source_variable_name,
                        destination_variable, **kwargs):
+
         destination_variable_name = kwargs.get('destination_variable_name',
                                                source_variable_name)
         source_variable = kwargs.get('source_variable', self.testsetup)
         function = kwargs.get('function', getattr)
         to_string = kwargs.get('to_string', False)
+        log.debug('Adding Variable (%s)' % destination_variable_name)
+        log.debug('Source Variable: (%s) Destination Variable: (%s) ' \
+                  'Source Variable Name (%s) Destination Variable Name (%s) ' \
+                  'Function (%s) ' % (
+            source_variable, destination_variable, source_variable_name,
+            destination_variable_name, function))
         value = function(source_variable, source_variable_name, None)
+        log.debug('Retrieved Value (%s)' % value)
         if value is not None:
             if to_string:
                 value = str(value)
             destination_variable[destination_variable_name] = value
 
     def generate(self):
+        log.debug('Generate Json with Dict data: %s' % self.dict_data)
+        log.info('Generating Json File (%s)...' % self.jsonfile)
         with open(self.jsonfile, 'w') as fid:
             fid.write('%s\n' % json.dumps(self.dict_data, sort_keys=True,
                                           indent=4, separators=(',', ': ')))
 
 class ServerJsonGenerator(BaseJsonGenerator):
     def __init__(self, testsetup, **kwargs):
-        kwargs.update([('name', 'server')])
+        kwargs.update([('name', kwargs.get('name', 'server'))])
         super(ServerJsonGenerator, self).__init__(testsetup=testsetup, **kwargs)
         self.dict_data = {"server": []}
 
@@ -614,7 +653,7 @@ class ServerJsonGenerator(BaseJsonGenerator):
 
 class ClusterJsonGenerator(BaseJsonGenerator):
     def __init__(self, testsetup, **kwargs):
-        kwargs.update([('name', 'cluster')])
+        kwargs.update([('name', kwargs.get('name', 'cluster'))])
         super(ClusterJsonGenerator, self).__init__(testsetup=testsetup, **kwargs)
         self.dict_data = {"cluster": []}
 
@@ -663,7 +702,7 @@ class ClusterJsonGenerator(BaseJsonGenerator):
 
 class ImageJsonGenerator(BaseJsonGenerator):
     def __init__(self, testsetup, package_files, **kwargs):
-        kwargs.update([('name', 'image')])
+        kwargs.update([('name', kwargs.get('name', 'image'))])
         super(ImageJsonGenerator, self).__init__(testsetup=testsetup,
                                                  package_files=package_files,
                                                  **kwargs)
@@ -702,6 +741,7 @@ class ImageJsonGenerator(BaseJsonGenerator):
         elif package_file.endswith('.deb'):
             dist = 'ubuntu'
         else:
+            log.debug('Only deb or rpm packages are supported. Received (%s)' % package_file)
             raise RuntimeError('UnSupported Package (%s)' % package_file)
         return "%s-%s-%s" %(package_type, dist, 'package')
 
@@ -723,6 +763,7 @@ class ImageJsonGenerator(BaseJsonGenerator):
             "type": self.get_package_type(package_file, package_type),
             "path": package_file,
         }
+        log.debug('Created Basic image_dict: %s' % image_dict)
         return image_dict
 
     def generate_json_file(self):
@@ -733,5 +774,5 @@ class ImageJsonGenerator(BaseJsonGenerator):
 
 if __name__ == '__main__':
     args = Utils.parse_args(sys.argv[1:])
+    log.info('Executing: %s' % " ".join(sys.argv))
     Utils.converter(args)
-
