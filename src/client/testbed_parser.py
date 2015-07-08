@@ -5,15 +5,36 @@ import argparse
 from collections import defaultdict
 from functools import wraps
 import json
+import logging
 import paramiko
 import os
 import re
+import shutil
 import sys
+from tempfile import mkdtemp
 
-# Testbed Converted Version
+# Testbed Converter Version
 __version__ = '1.0'
 
+log = logging.getLogger('test_parser')
+
 class Utils(object):
+    @staticmethod
+    def initialize_logger(log_file='testbed_parser.log', log_level=40):
+        logger = logging.getLogger('test_parser')
+        file_h = logging.FileHandler(log_file)
+        file_h.setLevel(logging.DEBUG)
+        stream_h = logging.StreamHandler(sys.stdout)
+        stream_h.setLevel(log_level)
+        long_format = '[%(asctime)-15s: %(filename)s:%(lineno)s:%(funcName)s: %(levelname)s] %(message)s'
+        short_format = '[%(asctime)-15s: %(funcName)s] %(message)s'
+        file_formatter = logging.Formatter(long_format)
+        stream_formatter = logging.Formatter(short_format)
+        file_h.setFormatter(file_formatter)
+        stream_h.setFormatter(stream_formatter)
+        logger.addHandler(file_h)
+        logger.addHandler(stream_h)
+
     @staticmethod
     def is_file_exists(*filenames):
         for filename in filenames:
@@ -26,11 +47,14 @@ class Utils(object):
     def parse_args(args):
         parser = argparse.ArgumentParser(description='TestBed Conversion Utility',
                                          add_help=True)
-        parser.add_argument('--version', '-v',
+        parser.add_argument('--version',
                             action='version',
                             version=__version__,
                             help='Print version and exit')
+        parser.add_argument('-v', action='count', default=0,
+                            help='Increase verbosity. -vvv prints more logs')
         parser.add_argument('--testbed',
+                            required=True,
                             help='Absolute path to testbed file')
         parser.add_argument('--contrail-packages',
                             nargs='+',
@@ -42,6 +66,9 @@ class Utils(object):
                             default=[],
                             help='Absolute path to Contrail Storage Package file, '\
                                  'Multiple files can be separated with space')
+        parser.add_argument('--log-file',
+                            default='test_parser.log',
+                            help='Absolute path of a file for logging')
         cliargs = parser.parse_args(args)
         if len(args) == 0:
             parser.print_help()
@@ -53,6 +80,11 @@ class Utils(object):
         if cliargs.contrail_storage_packages:
             cliargs.contrail_storage_packages = [('contrail_storage_packages', pkg_file) \
                 for pkg_file in Utils.is_file_exists(*cliargs.contrail_storage_packages)]
+
+        # update log level and log file
+        log_level = [40, 30, 20, 10]
+        cliargs.v = cliargs.v if cliargs.v <= 3 else 3
+        Utils.initialize_logger(log_file=cliargs.log_file, log_level=log_level[cliargs.v])
         return cliargs
 
     @staticmethod
@@ -286,18 +318,41 @@ class Testbed(object):
     def __init__(self, testbed):
         self.testbed_file = testbed
         self.testbed = None
+        self.fab_replacer = 'try:\n'\
+                            '    from fabric.api import env\n' \
+                            'except:\n' \
+                            '    class TestbedEnv(dict):\n' \
+                            '        def __getattr__(self, key):\n' \
+                            '            try:\n' \
+                            '                return self[key]\n' \
+                            '            except:\n' \
+                            '                raise AttributeError(key)\n' \
+                            '        def __setattr__(self, key, value):\n' \
+                            '            self[key] = value\n' \
+                            '    env = TestbedEnv()'
         self.import_testbed()
-        self.exclude_roles = ['all', 'build']
 
     def import_testbed(self):
-        testbed_file = os.path.split(self.testbed_file)
-        sys.path.append(testbed_file[0])
-        testbed_name = testbed_file[1].strip('.py')
+        pattern = re.compile(r'\bfrom\s+fabric.api\s+import\s+env\b')
+        tempdir = mkdtemp()
+        sys.path.insert(0, tempdir)
+
+        with open(os.path.join(tempdir, '__init__.py'), 'w') as fid:
+            fid.write('\n')
+
+        with open(self.testbed_file, 'r') as fid:
+            testbed_contents = fid.read()
+        new_contents = pattern.sub(self.fab_replacer, testbed_contents)
+        with open(os.path.join(tempdir, 'testbed.py'), 'w') as fid:
+            fid.write(new_contents)
+
         try:
-            self.testbed = __import__(testbed_name)
+            self.testbed = __import__('testbed')
         except Exception, err:
             print "ERROR: %s" % err
             raise RuntimeError('Error while importing testbed file (%s)' % self.testbed_file)
+        finally:
+            shutil.rmtree(tempdir)
 
 
 class TestSetup(Testbed):
@@ -354,6 +409,8 @@ class TestSetup(Testbed):
 
     def import_testbed_env_variables(self):
         for key, value in self.testbed.env.items():
+            if key == 'hosts':
+                continue
             setattr(self, key, value)
 
     def is_defined(variable):
@@ -462,8 +519,11 @@ class BaseJsonGenerator(object):
                                                source_variable_name)
         source_variable = kwargs.get('source_variable', self.testsetup)
         function = kwargs.get('function', getattr)
+        to_string = kwargs.get('to_string', False)
         value = function(source_variable, source_variable_name, None)
         if value is not None:
+            if to_string:
+                value = str(value)
             destination_variable[destination_variable_name] = value
 
     def generate(self):
@@ -561,7 +621,8 @@ class ClusterJsonGenerator(BaseJsonGenerator):
     def _initialize(self):
         cluster_dict = {"id": self.cluster_id}
         cluster_dict['parameters'] = {}
-        self.set_if_defined('router_asn', cluster_dict['parameters'])
+        self.set_if_defined('router_asn', cluster_dict['parameters'],
+                            to_string=True)
         self.set_if_defined('database_dir', cluster_dict['parameters'])
         self.set_if_defined('multi_tenancy', cluster_dict['parameters'])
         self.set_if_defined('encap_priority', cluster_dict['parameters'],
@@ -570,8 +631,29 @@ class ClusterJsonGenerator(BaseJsonGenerator):
                             destination_variable_name='analytics_data_ttl')
         self.set_if_defined('haproxy', cluster_dict['parameters'])
         self.set_if_defined('minimum_diskGB', cluster_dict['parameters'],
-                            destination_variable_name='database_minimum_diskGB')
+                            destination_variable_name='database_minimum_diskGB',
+                            to_string=True)
         self.set_if_defined('ext_routers', cluster_dict['parameters'])
+
+        # Update keystone details
+        if getattr(self.testsetup, 'keystone', None) is not None:
+            self.set_if_defined('admin_user', cluster_dict['parameters'],
+                                source_variable=self.testsetup.keystone,
+                                function=dict.get,
+                                destination_variable_name='keystone_username')
+            self.set_if_defined('admin_password', cluster_dict['parameters'],
+                                source_variable=self.testsetup.keystone,
+                                function=dict.get,
+                                destination_variable_name='keystone_password')
+            self.set_if_defined('admin_tenant', cluster_dict['parameters'],
+                                source_variable=self.testsetup.keystone,
+                                function=dict.get,
+                                destination_variable_name='keystone_tenant')
+        if getattr(self.testsetup, 'openstack', None) is not None:
+            self.set_if_defined('service_token', cluster_dict['parameters'],
+                                function=dict.get,
+                                source_variable=self.testsetup.openstack)
+
         return cluster_dict
 
     def generate_json_file(self):
@@ -613,18 +695,32 @@ class ImageJsonGenerator(BaseJsonGenerator):
             category = self.package_types.get(ext[0], category)
         return category
 
-    def get_package_type(self, package_type):
-        dist = self.testsetup.os_type[0]
-        package_type = package_type.split('_')
-        package_type.insert(1, dist)
-        return "_".join(package_type)
+    def get_package_type(self, package_file, package_type):
+        package_type = package_type.replace('_', '-').replace('-packages', '')
+        if package_file.endswith('.rpm'):
+            dist = 'centos'
+        elif package_file.endswith('.deb'):
+            dist = 'ubuntu'
+        else:
+            raise RuntimeError('UnSupported Package (%s)' % package_file)
+        return "%s-%s-%s" %(package_type, dist, 'package')
+
+    def get_md5(self, package_file):
+        pid = os.popen('md5sum %s' % package_file)
+        md5sum = pid.read().strip()
+        return md5sum.split()[0]
 
     def _initialize(self, package_file, package_type):
+        image_id = version = self.get_version(package_file)
+        replacables = ['.', '-', '~']
+        for r_item, item  in zip(['_'] * len(replacables), replacables):
+            image_id = image_id.replace(item, r_item)
+
         image_dict = {
-            "id": "image-1",
+            "id": "image_%s" % image_id,
             "category": self.get_category(package_file),
-            "version": self.get_version(package_file),
-            "type": self.get_package_type(package_type),
+            "version": version,
+            "type": self.get_package_type(package_file, package_type),
             "path": package_file,
         }
         return image_dict
@@ -638,3 +734,4 @@ class ImageJsonGenerator(BaseJsonGenerator):
 if __name__ == '__main__':
     args = Utils.parse_args(sys.argv[1:])
     Utils.converter(args)
+
