@@ -588,7 +588,7 @@ class ServerJsonGenerator(BaseJsonGenerator):
                            "interfaces": [
                                 {
                                 "default_gateway": hostobj.default_gateway,
-                                "ip_address": hostobj.ip,
+                                "ip_address": "%s/%s" % (hostobj.ip, hostobj.ip_net[1]),
                                 "mac_address": hostobj.mac,
                                 "name": hostobj.interface,
                                 }  ]
