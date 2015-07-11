@@ -149,8 +149,8 @@ class Server(object):
             output = re.sub(r'%s\n$' % magic_pattern, '', output, 1)
 
         if exit_status:
-            log.error('Cmd (%s) Failed' % cmd)
-            log.error('%s' % stderr.read())
+            log.warn('Cmd (%s) Failed' % cmd)
+            log.warn('%s' % stderr.read())
 
         if error_on_fail and exit_status:
             log.error('[error_on_fail]: Cmd (%s) Failed' % original_cmd)
