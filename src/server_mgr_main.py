@@ -1600,7 +1600,8 @@ class VncServerManager():
                 server_data['id'] = server.get('id', None)
                 self._serverDb.modify_server_to_new_interface_config(server_data)
             # End of for
-            gevent.spawn(self._server_inventory_obj.handle_inventory_trigger, "add", servers)
+            if self._server_inventory_obj:
+                gevent.spawn(self._server_inventory_obj.handle_inventory_trigger, "add", servers)
         except ServerMgrException as e:
             self._smgr_trans_log.log(bottle.request,
                                      self._smgr_trans_log.PUT_SMGR_CFG_SERVER, False)
@@ -2266,7 +2267,8 @@ class VncServerManager():
             if self._smgr_cobbler:
                 self._smgr_cobbler.sync()
             # Inventory Delete Info Trigger
-            gevent.spawn(self._server_inventory_obj.handle_inventory_trigger, "delete", servers)
+            if self._server_inventory_obj:
+                gevent.spawn(self._server_inventory_obj.handle_inventory_trigger, "delete", servers)
         except ServerMgrException as e:
             self._smgr_trans_log.log(bottle.request,
                                 self._smgr_trans_log.DELETE_SMGR_CFG_SERVER,
