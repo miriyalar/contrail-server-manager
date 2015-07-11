@@ -455,6 +455,9 @@ class TestSetup(Testbed):
     def get_roles(self):
         host_dict = defaultdict(list)
         for role, hosts in self.roledefs.items():
+            if role == 'build' or role == 'all':
+                log.debug('Discarding role (%s)' % role)
+                continue
             for host in hosts:
                 host_dict[host].append(role)
         return host_dict
@@ -462,12 +465,6 @@ class TestSetup(Testbed):
     def update_host_roles(self):
         host_dict = self.get_roles()
         for host_id, roles in host_dict.items():
-            log.debug('Removing roles - all, build')
-            # Not required in SM environment
-            if roles.count('all') > 0:
-                roles.remove('all')
-            if roles.count('build') > 0:
-                roles.remove('build')
             log.debug('Replacing cfgm role with config role name')
             if roles.count('cfgm') > 0:
                 roles.remove('cfgm')
@@ -622,7 +619,7 @@ class ServerJsonGenerator(BaseJsonGenerator):
         if hostobj.control_data['device'].startswith('bond'):
             control_data_dict = self.update_bond_details(server_dict, hostobj)
         else:
-            control_data_dict = {"name": hostobj.control_data['name']}
+            control_data_dict = {"name": hostobj.control_data['device']}
         control_data_dict["ip_address"] = hostobj.control_data['ip']
         self.set_if_defined('gw', control_data_dict,
                             source_variable=hostobj.control_data,

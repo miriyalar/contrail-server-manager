@@ -162,7 +162,7 @@ class Server(object):
         self.preconfig_unauthenticated_packages()
         self.preconfig_repos()
         self.install_packages()
-        #self.setup_interface()
+        self.setup_interface()
         self.preconfig_ntp_config()
         self.preconfig_puppet_config()
 
@@ -195,8 +195,8 @@ class Server(object):
     
     def preconfig_repos(self):
         repo_entry = r'deb http://%s:%s/thirdparty_packages/ ./' % (self.server_manager_ip, self.server_manager_port)
-        repo_entry_verify = r'%s:%s\/thirdparty_packages' % (self.server_manager_ip, self.server_manager_port)
-        status, output = self.exec_cmd('apt-cache policy | grep %s' % repo_entry_verify)
+        repo_entry_verify = r'%s.*\/thirdparty_packages' % self.server_manager_ip
+        status, output = self.exec_cmd('apt-cache policy | grep "%s"' % repo_entry_verify)
         if status:
             log.info('/etc/apt/sources.list has no thirdparty_packages '
                      'repo entry')
@@ -207,7 +207,7 @@ class Server(object):
             self.exec_cmd('echo >> /etc/apt/sources.list', error_on_fail=True)
             self.exec_cmd(r"sed -i '1 i\%s' /etc/apt/sources.list" % repo_entry)
             self.exec_cmd('apt-get update')
-            self.exec_cmd('apt-cache policy | grep %s' % repo_entry_verify,
+            self.exec_cmd('apt-cache policy | grep "%s"' % repo_entry_verify,
                           error_on_fail=True)
     
     def install_packages(self):
@@ -219,17 +219,17 @@ class Server(object):
         return self.exec_cmd('ip addr show %s | grep %s' % (interface, ip))
 
     def exec_setup_interface(self, iface_info, error_on_fail=True):
-        cmd = '/opt/contrail/bin/interface_setup.py '
-        cmd += '--device %s --ip %s ' % (iface_info['name'],
+        cmd = r'/opt/contrail/bin/interface_setup.py '
+        cmd += r'--device %s --ip %s ' % (iface_info['name'],
                                          iface_info['ip_address'])
         if 'member_interfaces' in iface_info.keys():
-            cmd += '--members %s ' % " ".join(iface_info['member_interfaces'])
+            cmd += r'--members %s ' % " ".join(iface_info['member_interfaces'])
         if 'gateway' in iface_info.keys():
-            cmd += '--gw %s ' % iface_info['gateway']
+            cmd += r'--gw %s ' % iface_info['gateway']
         if 'vlan' in iface_info.keys():
-            cmd += '--vlan %s ' % iface_info['vlan']
+            cmd += r'--vlan %s ' % iface_info['vlan']
         if 'bond_options' in iface_info.keys():
-            cmd += '--bond-opts %s' % json.dumps(iface_info['bond_options'])
+            cmd += r'--bond-opts "%s"' % json.dumps(iface_info['bond_options'])
         status, output = self.exec_cmd(cmd)
         if error_on_fail and status:
             raise RuntimeError('Setup Interface failed for ' \
@@ -258,7 +258,7 @@ class Server(object):
             self.setup_ntp()
         status, output = self.exec_cmd(r'ntpdc -nc sysinfo | grep "system peer.*%s$"' % self.server_manager_ip)
         if status:
-            self.exec_cmd(r'echo "server %s\n" >> /etc/ntp.conf' % self.server_manager_ip)
+            self.exec_cmd(r'echo "server %s" >> /etc/ntp.conf' % self.server_manager_ip)
     
     def setup_ntp(self, ):
         log.debug('Install ntp package')
