@@ -45,6 +45,10 @@ class Utils(object):
         return filenames
 
     @staticmethod
+    def get_abspath(*filenames):
+        return [os.path.abspath(os.path.expanduser(filename)) for filename in filenames]
+
+    @staticmethod
     def parse_args(args):
         parser = argparse.ArgumentParser(description='TestBed Conversion Utility',
                                          add_help=True)
@@ -76,11 +80,11 @@ class Utils(object):
             sys.exit(2)
         if cliargs.contrail_packages:
             cliargs.contrail_packages = [('contrail_packages', pkg_file) \
-                for pkg_file in Utils.is_file_exists(*cliargs.contrail_packages)]
+                for pkg_file in Utils.get_abspath(*Utils.is_file_exists(*cliargs.contrail_packages))]
 
         if cliargs.contrail_storage_packages:
             cliargs.contrail_storage_packages = [('contrail_storage_packages', pkg_file) \
-                for pkg_file in Utils.is_file_exists(*cliargs.contrail_storage_packages)]
+                for pkg_file in Utils.get_abspath(*Utils.is_file_exists(*cliargs.contrail_storage_packages))]
 
         # update log level and log file
         log_level = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]

@@ -98,7 +98,7 @@ class Server(object):
         self.connection_timeout = 5
         self.username = 'root'
         self.export_server_info()
-        self.extra_packages = ['puppet', 'python-netaddr',
+        self.extra_packages = ['puppet=3.7.3-1puppetlabs1', 'python-netaddr',
                                'ifenslave-2.6=1.1.0-19ubuntu5', 'sysstat',                             
                                'ethtool']
 
@@ -168,14 +168,23 @@ class Server(object):
 
     def verify_puppet_host(self):
         ping_cmd = r'ping -q -c 1 puppet > /dev/null 2>@1'
-        status, output = self.exec_cmd(ping_cmd)
+        puppet_cmd = r'grep puppet /etc/hosts | grep -v "^[ ]*#"'
+        status, old_entry = self.exec_cmd(puppet_cmd)
+        old_entry = old_entry.strip()
         if status:
             log.info('Seems puppet host is not configured')
             log.info('Adding puppet alias to /etc/hosts file')
             puppet_cmd = 'echo %s puppet >> /etc/hosts' % self.server_manager_ip
             self.exec_cmd(puppet_cmd, error_on_fail=True)
-            log.debug('Verify puppet host after configuration')
-            self.exec_cmd(ping_cmd, error_on_fail=True)       
+        else:
+            log.info('Seems puppet host is already configured. ' \
+                     'Replacing with Server Manager (%s) entry' % self.server_manager_ip)
+            self.exec_cmd(r"sed -i 's/%s/%s puppet/g' /etc/hosts" % (
+                              old_entry, self.server_manager_ip),
+                          error_on_fail=True)
+
+        log.debug('Verify puppet host after configuration')
+        self.exec_cmd(ping_cmd, error_on_fail=True)
     
     def verify_setup_hostname(self):
         if not self.id:
@@ -253,12 +262,9 @@ class Server(object):
                 self.exec_setup_interface(iface_info)
     
     def check_ntp_status(self):
-        status, output = self.exec_cmd(r'ntpdc -nc sysinfo | grep "system peer.*0.0.0.0"')
-        if not status:
-            self.setup_ntp()
-        status, output = self.exec_cmd(r'ntpdc -nc sysinfo | grep "system peer.*%s$"' % self.server_manager_ip)
+        status, output = self.exec_cmd(r'ntpq -pn | grep "%s" ' % self.server_manager_ip)
         if status:
-            self.exec_cmd(r'echo "server %s" >> /etc/ntp.conf' % self.server_manager_ip)
+            self.setup_ntp()
     
     def setup_ntp(self, ):
         log.debug('Install ntp package')
@@ -266,7 +272,7 @@ class Server(object):
         log.debug('Setup NTP configuration')
         self.exec_cmd('ntpdate %s' % self.server_manager_ip)
         log.debug('Backup existing ntp.conf')
-        self.exec_cmd(r'mv /etc/ntp.conf /etc/ntp.conf.$(date +%Y_%m_%d__%H_%M_%S)',
+        self.exec_cmd(r'mv /etc/ntp.conf /etc/ntp.conf.$(date +%Y_%m_%d__%H_%M_%S).contrailbackup',
                       error_on_fail=True)
         self.exec_cmd('touch /var/lib/ntp/drift', error_on_fail=True)
         ntp_config = 'driftfile /var/lib/ntp/drift\n' \
@@ -277,10 +283,10 @@ class Server(object):
                      'keys /etc/ntp/keys' % self.server_manager_ip
         self.exec_cmd(r'echo "%s" >> /etc/ntp.conf' % ntp_config,
                       error_on_fail=True)
-        self.exec_cmd('service ntp restart', error_on_fail=True)
     
     def preconfig_ntp_config(self):
         self.check_ntp_status()
+        self.exec_cmd('service ntp restart', error_on_fail=True)
 
     def setup_puppet_configs(self, ):
         log.info('Setup puppet Configs')
@@ -290,9 +296,12 @@ class Server(object):
                         'usecacheonfailure = false\n' \
                         'listen = true\n' \
                         'ordering = manifest\n' \
+                        'report = true\n' \
                         '[main]\n' \
                         'runinterval = 10\n' \
-                        'configtimeout = 500'
+                        'configtimeout = 500\n'
+        self.exec_cmd(r'cp /etc/puppet/puppet.conf /etc/puppet/puppet.conf.$(date +%Y_%m_%d__%H_%M_%S).contrailbackup',
+                      error_on_fail=True)
         self.exec_cmd(r'echo "%s" >> /etc/puppet/puppet.conf' % puppet_config,
                       error_on_fail=True)
         
