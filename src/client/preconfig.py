@@ -310,8 +310,8 @@ class Server(object):
 
     def update_default_puppet(self, ):
         log.info('Update default puppet config file for non-server-manager node')
-        if self.ip != self.server_manager_ip:
-            self.exec_cmd(r"sed -i 's/START=.*$/START=yes/' /etc/default/puppet")
+        self.exec_cmd(r"sed -i 's/START=.*$/START=yes/' /etc/default/puppet",
+                      error_on_fail=True)
 
     def remove_puppet_ssl(self):
         log.info('Remove puppet ssl for non-server-manager node')
