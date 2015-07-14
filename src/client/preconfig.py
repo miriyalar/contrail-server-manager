@@ -284,9 +284,12 @@ class Server(object):
         self.exec_cmd(r'echo "%s" >> /etc/ntp.conf' % ntp_config,
                       error_on_fail=True)
     
+    def restart_ntp_service(self):
+        self.exec_cmd('service ntp restart', error_on_fail=True)
+
     def preconfig_ntp_config(self):
         self.check_ntp_status()
-        self.exec_cmd('service ntp restart', error_on_fail=True)
+        self.restart_ntp_service()
 
     def setup_puppet_configs(self, ):
         log.info('Setup puppet Configs')
@@ -304,10 +307,26 @@ class Server(object):
                       error_on_fail=True)
         self.exec_cmd(r'echo "%s" >> /etc/puppet/puppet.conf' % puppet_config,
                       error_on_fail=True)
-        
+
+    def update_default_puppet(self, ):
+        log.info('Update default puppet config file for non-server-manager node')
+        if self.ip != self.server_manager_ip:
+            self.exec_cmd(r"sed -i 's/START=.*$/START=yes/' /etc/default/puppet")
+
+    def remove_puppet_ssl(self):
+        log.info('Remove puppet ssl for non-server-manager node')
+        if self.ip != self.server_manager_ip:
+            self.exec_cmd(r'rm -rf /var/lib/puppet/ssl', error_on_fail=True)
+
+    def restart_puppet_service(self):
+        self.exec_cmd(r'service puppet restart', error_on_fail=True)
+
     def preconfig_puppet_config(self):
         self.setup_puppet_configs()
-    
+        self.remove_puppet_ssl()
+        self.update_default_puppet()
+        self.restart_puppet_service()
+
 if __name__ == '__main__':
     args = Utils.parse_args(sys.argv[1:])
     log.info('Executing: %s' % " ".join(sys.argv))
