@@ -141,6 +141,8 @@ class Server(object):
         magic_pattern = r'001902803704605506407308209100'
         original_cmd = cmd
         cmd += ' && echo %s' % magic_pattern
+        log.debug('Original Command (%s)' % original_cmd)
+        log.debug('Executing Command (%s) ...' % cmd)
         stdin, stdout, stderr = self.connection.exec_command(cmd)
         # check stderr is pending
         output = stdout.read()
