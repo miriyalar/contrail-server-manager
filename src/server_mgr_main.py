@@ -45,7 +45,10 @@ try:
     from server_mgr_cobbler import ServerMgrCobbler as ServerMgrCobbler
 except ImportError:
     pass
-from server_mgr_mon_base_plugin import ServerMgrMonBasePlugin
+try:
+    from server_mgr_mon_base_plugin import ServerMgrMonBasePlugin
+except ImportError:
+    pass
 from server_mgr_puppet import ServerMgrPuppet as ServerMgrPuppet
 from server_mgr_logger import ServerMgrlogger as ServerMgrlogger
 from server_mgr_logger import ServerMgrTransactionlogger as ServerMgrTlog
