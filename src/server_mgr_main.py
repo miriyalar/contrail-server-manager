@@ -43,6 +43,9 @@ from server_mgr_status import *
 from server_mgr_db import ServerMgrDb as db
 try:
     from server_mgr_cobbler import ServerMgrCobbler as ServerMgrCobbler
+except ImportError:
+    pass
+try:
     from server_mgr_mon_base_plugin import ServerMgrMonBasePlugin
 except ImportError:
     pass
@@ -293,8 +296,6 @@ class VncServerManager():
         if not args_str:
             args_str = sys.argv[1:]
         self._parse_args(args_str)
-        if self._is_monitoring_enabled(self._args.monitoring): 
-            self._monitoring_base_plugin_obj = ServerMgrMonBasePlugin()
         self._cfg_obj_defaults = self._read_smgr_object_defaults(self._smgr_config)
         self._cfg_defaults_dict = self._cfg_parse_defaults(self._cfg_obj_defaults)
         self._code_defaults_dict = self._prepare_code_defaults()
@@ -3976,6 +3977,7 @@ class VncServerManager():
         self._server_monitoring_obj = None 
         self._server_inventory_obj = None 
         if self._is_monitoring_enabled(self._args.monitoring):
+            self._monitoring_base_plugin_obj = ServerMgrMonBasePlugin()
             self._server_monitoring_obj = \
                 self._monitoring_base_plugin_obj.parse_monitoring_args(args_str, args, self._args, self._rev_tags_dict,
                                                                        self._monitoring_base_plugin_obj)
