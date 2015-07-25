@@ -146,6 +146,7 @@ class Server(object):
         stdin, stdout, stderr = self.connection.exec_command(cmd)
         # check stderr is pending
         output = stdout.read()
+        log.debug(output)
         if output.count(magic_pattern) > 0:
             exit_status = 0
             output = re.sub(r'%s\n$' % magic_pattern, '', output, 1)
@@ -240,7 +241,7 @@ class Server(object):
         if 'vlan' in iface_info.keys():
             cmd += r'--vlan %s ' % iface_info['vlan']
         if 'bond_options' in iface_info.keys():
-            cmd += r'--bond-opts "%s"' % json.dumps(iface_info['bond_options'])
+            cmd += r"--bond-opts '%s'" % json.dumps(iface_info['bond_options'])
         status, output = self.exec_cmd(cmd)
         if error_on_fail and status:
             raise RuntimeError('Setup Interface failed for ' \

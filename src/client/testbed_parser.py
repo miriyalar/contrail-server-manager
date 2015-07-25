@@ -550,7 +550,7 @@ class BaseJsonGenerator(object):
                                                source_variable_name)
         source_variable = kwargs.get('source_variable', self.testsetup)
         function = kwargs.get('function', getattr)
-        to_string = kwargs.get('to_string', False)
+        to_string = kwargs.get('to_string', True)
         log.debug('Adding Variable (%s)' % destination_variable_name)
         log.debug('Source Variable: (%s) Destination Variable: (%s) ' \
                   'Source Variable Name (%s) Destination Variable Name (%s) ' \
@@ -674,6 +674,18 @@ class ClusterJsonGenerator(BaseJsonGenerator):
                             destination_variable_name='database_minimum_diskGB',
                             to_string=True)
         self.set_if_defined('ext_routers', cluster_dict['parameters'])
+        self.set_if_defined('internal_vip',cluster_dict['parameters'],
+                            source_variable=self.testsetup.ha,
+                            function=dict.get)
+        self.set_if_defined('external_vip',cluster_dict['parameters'],
+                            source_variable=self.testsetup.ha,
+                            function=dict.get)
+        self.set_if_defined('nfs_server',cluster_dict['parameters'],
+                            source_variable=self.testsetup.ha,
+                            function=dict.get)
+        self.set_if_defined('nfs_glance_path',cluster_dict['parameters'],
+                            source_variable=self.testsetup.ha,
+                            function=dict.get)
 
         # Update keystone details
         if getattr(self.testsetup, 'keystone', None) is not None:
