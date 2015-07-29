@@ -324,7 +324,6 @@ class Server(object):
                         'pluginsync = true\n' \
                         'ignorecache = true\n' \
                         'usecacheonfailure = false\n' \
-                        'listen = true\n' \
                         'ordering = manifest\n' \
                         'report = true\n' \
                         '[main]\n' \
