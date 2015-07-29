@@ -247,7 +247,7 @@ class Server(object):
         else:
             raise RuntimeError('UnSupported OS type (%s)' % self.os_version)
 
-        for package in self.extra_packages:
+        for package in packages_list:
             self.exec_cmd('apt-get -y install %s' % package,
                           error_on_fail=True)
 
