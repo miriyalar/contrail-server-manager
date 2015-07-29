@@ -674,18 +674,20 @@ class ClusterJsonGenerator(BaseJsonGenerator):
                             destination_variable_name='database_minimum_diskGB',
                             to_string=True)
         self.set_if_defined('ext_routers', cluster_dict['parameters'])
-        self.set_if_defined('internal_vip',cluster_dict['parameters'],
-                            source_variable=self.testsetup.ha,
-                            function=dict.get)
-        self.set_if_defined('external_vip',cluster_dict['parameters'],
-                            source_variable=self.testsetup.ha,
-                            function=dict.get)
-        self.set_if_defined('nfs_server',cluster_dict['parameters'],
-                            source_variable=self.testsetup.ha,
-                            function=dict.get)
-        self.set_if_defined('nfs_glance_path',cluster_dict['parameters'],
-                            source_variable=self.testsetup.ha,
-                            function=dict.get)
+        # Update ha details
+        if getattr(self.testsetup, 'ha', None) is not None:
+            self.set_if_defined('internal_vip',cluster_dict['parameters'],
+                                source_variable=self.testsetup.ha,
+                                function=dict.get)
+            self.set_if_defined('external_vip',cluster_dict['parameters'],
+                                source_variable=self.testsetup.ha,
+                                function=dict.get)
+            self.set_if_defined('nfs_server',cluster_dict['parameters'],
+                                source_variable=self.testsetup.ha,
+                                function=dict.get)
+            self.set_if_defined('nfs_glance_path',cluster_dict['parameters'],
+                                source_variable=self.testsetup.ha,
+                                function=dict.get)
 
         # Update keystone details
         if getattr(self.testsetup, 'keystone', None) is not None:

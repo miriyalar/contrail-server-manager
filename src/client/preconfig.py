@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+from ast import literal_eval
 import json
 import logging
 import paramiko
@@ -98,9 +99,13 @@ class Server(object):
         self.connection_timeout = 5
         self.username = 'root'
         self.export_server_info()
-        self.extra_packages = ['puppet=3.7.3-1puppetlabs1', 'python-netaddr',
-                               'ifenslave-2.6=1.1.0-19ubuntu5', 'sysstat',                             
-                               'ethtool']
+        self.os_version = ()
+        self.extra_packages_12_04 = ['puppet=3.7.3-1puppetlabs1', 'python-netaddr',
+                                     'ifenslave-2.6=1.1.0-19ubuntu5', 'sysstat',
+                                     'ethtool']
+        self.extra_packages_14_04 = ['puppet=3.7.3-1puppetlabs1', 'python-netaddr',
+                                     'ifenslave-2.6=2.4ubuntu1', 'sysstat',
+                                     'ethtool']
 
     def __del__(self):
         log.info('Disconnecting...')
@@ -160,7 +165,18 @@ class Server(object):
             raise RuntimeError('[error_on_fail]: Cmd (%s) Failed' % original_cmd)
         return exit_status, output
     
+    def get_os_version(self):
+        log.debug('Retrieve OS version')
+        cmd = r'python -c "import platform; print platform.linux_distribution()"'
+        status, output = self.exec_cmd(cmd)
+        version_info = literal_eval(output)
+        return version_info
+
+    def set_os_version(self):
+        self.os_version = self.get_os_version()
+
     def preconfig(self):
+        self.set_os_version()
         self.preconfig_hosts_file()
         self.preconfig_unauthenticated_packages()
         self.preconfig_repos()
@@ -223,6 +239,14 @@ class Server(object):
                           error_on_fail=True)
     
     def install_packages(self):
+        os_type, version, misc = self.os_version
+        if os_type.lower() == 'ubuntu' and version == '12.04':
+            packages_list = self.extra_packages_12_04
+        elif os_type.lower() == 'ubuntu' and version == '14.04':
+            packages_list = self.extra_packages_14_04
+        else:
+            raise RuntimeError('UnSupported OS type (%s)' % self.os_version)
+
         for package in self.extra_packages:
             self.exec_cmd('apt-get -y install %s' % package,
                           error_on_fail=True)
@@ -334,3 +358,4 @@ if __name__ == '__main__':
     args = Utils.parse_args(sys.argv[1:])
     log.info('Executing: %s' % " ".join(sys.argv))
     Utils.preconfig(args)
+
