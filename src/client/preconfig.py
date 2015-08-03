@@ -342,7 +342,7 @@ class Server(object):
     def remove_puppet_ssl(self):
         log.info('Remove puppet ssl for non-server-manager node')
         if self.ip != self.server_manager_ip:
-            self.exec_cmd(r'rm -rf /var/lib/puppet/ssl', error_on_fail=True)
+            self.exec_cmd(r'find /var/lib/puppet/ssl -name %s.%s*.pem -delete' % (self.id, self.domain), error_on_fail=True)
 
     def restart_puppet_service(self):
         self.exec_cmd(r'service puppet restart', error_on_fail=True)
