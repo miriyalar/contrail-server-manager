@@ -7,6 +7,7 @@ import logging
 import paramiko
 import os
 import re
+import subprocess
 import sys
 
 # Testbed Converter Version
@@ -141,13 +142,29 @@ class Server(object):
     def disconnect(self):
         self.connection.close()
 
+    def local_exec_cmd(self, cmd, error_on_fail=False):
+        exit_status = 1
+        log.info('[localhost]: %s' % cmd)
+        proc = subprocess.Popen(cmd, shell=True,
+                                          stdout=subprocess.PIPE,
+                                          stderr=subprocess.STDOUT,
+                                          stdin=subprocess.PIPE)
+        stdout, stderr = proc.communicate()
+        if proc.returncode != 0:
+            exit_status = 0
+            log.error(stdout)
+            log.error(stderr)
+            if error_on_fail:
+                raise RuntimeError('Command (%s) Failed' % cmd)
+        return exit_status, stdout, stderr
+
     def exec_cmd(self, cmd, error_on_fail=False):
         exit_status = 1
         magic_pattern = r'001902803704605506407308209100'
         original_cmd = cmd
         cmd += ' && echo %s' % magic_pattern
-        log.debug('Original Command (%s)' % original_cmd)
-        log.debug('Executing Command (%s) ...' % cmd)
+        log.info('[%s]: %s' % (self.ip, original_cmd))
+        log.debug('[%s]: %s' % (self.ip, cmd))
         stdin, stdout, stderr = self.connection.exec_command(cmd)
         # check stderr is pending
         output = stdout.read()
@@ -342,7 +359,12 @@ class Server(object):
     def remove_puppet_ssl(self):
         log.info('Remove puppet ssl for non-server-manager node')
         if self.ip != self.server_manager_ip:
-            self.exec_cmd(r'find /var/lib/puppet/ssl -name %s.%s*.pem -delete' % (self.id, self.domain), error_on_fail=True)
+            if self.domain:
+                fqdn = '%s.%s' % (self.id, self.domain)
+            else:
+                fqdn = self.id
+            self.local_exec_cmd(r'puppet cert list %s && puppet cert clean %s' % (fqdn, fqdn))
+            self.exec_cmd(r'find /var/lib/puppet/ssl -name %s*.pem -delete' % fqdn, error_on_fail=True)
 
     def restart_puppet_service(self):
         self.exec_cmd(r'service puppet restart', error_on_fail=True)
