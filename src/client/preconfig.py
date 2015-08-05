@@ -310,7 +310,7 @@ class Server(object):
         if status:
             self.setup_ntp()
     
-    def setup_ntp(self, ):
+    def setup_ntp(self):
         log.debug('Install ntp package')
         self.exec_cmd('apt-get -y install ntp', error_on_fail=True)
         log.debug('Setup NTP configuration')
@@ -335,7 +335,7 @@ class Server(object):
         self.check_ntp_status()
         self.restart_ntp_service()
 
-    def setup_puppet_configs(self, ):
+    def setup_puppet_configs(self):
         log.info('Setup puppet Configs')
         puppet_config = '[agent]\n' \
                         'pluginsync = true\n' \
@@ -351,8 +351,9 @@ class Server(object):
         self.exec_cmd(r'echo "%s" >> /etc/puppet/puppet.conf' % puppet_config,
                       error_on_fail=True)
 
-    def update_default_puppet(self, ):
+    def update_default_puppet(self):
         log.info('Update default puppet config file for non-server-manager node')
+        self.exec_cmd(r'sed -i "s/initialize(name, path, source, ignore = nil, environment = nil, source_permissions = :ignore)/initialize(name, path, source, ignore = nil, environment = nil, source_permissions = :use)/g" /usr/lib/ruby/vendor_ruby/puppet/configurer/downloader.rb', error_on_fail=True)
         self.exec_cmd(r"sed -i 's/START=.*$/START=yes/' /etc/default/puppet",
                       error_on_fail=True)
 
