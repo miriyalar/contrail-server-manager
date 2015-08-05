@@ -364,7 +364,8 @@ class Server(object):
             else:
                 fqdn = self.id
             self.local_exec_cmd(r'puppet cert list %s && puppet cert clean %s' % (fqdn, fqdn))
-            self.exec_cmd(r'find /var/lib/puppet/ssl -name %s*.pem -delete' % fqdn, error_on_fail=True)
+            #self.exec_cmd(r'find /var/lib/puppet/ssl -name %s*.pem -delete' % fqdn, error_on_fail=True)
+            self.exec_cmd(r'rm -rf /var/lib/puppet/ssl')
 
     def restart_puppet_service(self):
         self.exec_cmd(r'service puppet restart', error_on_fail=True)
