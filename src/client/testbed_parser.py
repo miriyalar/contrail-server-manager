@@ -71,6 +71,10 @@ class Utils(object):
                             default=[],
                             help='Absolute path to Contrail Storage Package file, '\
                                  'Multiple files can be separated with space')
+        parser.add_argument('--cluster-id',
+                            action='store',
+                            default=None,
+                            help='Provide Cluster ID of the cluster')
         parser.add_argument('--log-file',
                             default='test_parser.log',
                             help='Absolute path of a file for logging')
@@ -94,7 +98,7 @@ class Utils(object):
 
     @staticmethod
     def converter(args):
-        testsetup = TestSetup(testbed=args.testbed)
+        testsetup = TestSetup(testbed=args.testbed, cluster_id=args.cluster_id)
         testsetup.connect()
         testsetup.update()
         server_json = ServerJsonGenerator(testsetup=testsetup)
@@ -386,8 +390,9 @@ class Testbed(object):
 
 
 class TestSetup(Testbed):
-    def __init__(self, testbed):
+    def __init__(self, testbed, cluster_id=None):
         super(TestSetup, self).__init__(testbed=testbed)
+        self.cluster_id = cluster_id
         self.host_ids = []
         self.hosts = defaultdict(dict)
         self.import_testbed_variables()
@@ -540,7 +545,7 @@ class BaseJsonGenerator(object):
         abspath = kwargs.get('abspath', None)
         self.package_files = kwargs.get('package_files', None)
         self.jsonfile = abspath or '%s.json' % name
-        self.cluster_id = "cluster"
+        self.cluster_id = self.testsetup.cluster_id or "cluster"
         self.dict_data = {}
 
     def set_if_defined(self, source_variable_name,
