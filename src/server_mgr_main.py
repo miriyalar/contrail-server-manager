@@ -93,7 +93,7 @@ _DEF_SANDESH_LOG_LEVEL = 'SYS_INFO'
 _DEF_ROLE_SEQUENCE_DEF_FILE = _DEF_SMGR_BASE_DIR + 'role_sequence.json'
 _CONTRAIL_CENTOS_REPO = 'contrail-centos-repo'
 _CONTRAIL_REDHAT_REPO = 'contrail-redhat-repo'
-
+_DEF_SMGR_PROVISION_LOGS_DIR = '/var/log/contrail-server-manager/provision/'
 # Temporary variable added to disable use of new puppet framework. This should be removed/enabled
 # only after the new puppet framework has been fully tested. Value is set to TRUE for now, remove
 # this variable and it's use when enabling new puppet framework.
@@ -340,7 +340,7 @@ class VncServerManager():
         try:
             self._smgr_cobbler = None
             if self._is_cobbler_enabled(self._args.cobbler):
-                ServerMgrCobbler(self._args.server_manager_base_dir,
+                self._smgr_cobbler = ServerMgrCobbler(self._args.server_manager_base_dir,
                                  self._args.cobbler_ip_address,
                                  self._args.cobbler_port,
                                  self._args.cobbler_username,
@@ -4107,6 +4107,14 @@ class VncServerManager():
                     self._smgr_log.log(
                         self._smgr_log.DEBUG,
                         cmd + "; ret_code = %d" %(ret_code))
+                    # Remove provision log for the server
+                    cmd = "rm -rf " + _DEF_SMGR_PROVISION_LOGS_DIR + server['id'] + '.' + \
+                            server['domain']
+                    ret_code = subprocess.call(cmd, shell=True)
+                    self._smgr_log.log(
+                        self._smgr_log.DEBUG,
+                        cmd + "; ret_code = %d" %(ret_code))
+
                 # end if
                 if server['ipmi_address']:
                     power_reboot_list.append(
