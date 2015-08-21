@@ -340,7 +340,7 @@ class VncServerManager():
         try:
             self._smgr_cobbler = None
             if self._is_cobbler_enabled(self._args.cobbler):
-                ServerMgrCobbler(self._args.server_manager_base_dir,
+                self._smgr_cobbler = ServerMgrCobbler(self._args.server_manager_base_dir,
                                  self._args.cobbler_ip_address,
                                  self._args.cobbler_port,
                                  self._args.cobbler_username,
